@@ -1636,8 +1636,8 @@ function cycleMention(swId, skId) {
 // ══════════════════════════════════════════════
 //  AI GENERATION
 // ══════════════════════════════════════════════
-// 🔑 Key is stored in browser localStorage — never hardcoded in source
-function getApiKey() { return localStorage.getItem('swim_report_gemini_key') || ''; }
+// 🔑 Paste your free Gemini API key here (aistudio.google.com)
+const GEMINI_API_KEY = 'AIzaSyDHAQC_ebtmOVYxZ_whDkWhZHz1NiHbpJc';
 async function generate(swId) {
   const sw = S.swimmers.find(s => s.id === swId);
   if (!sw) return;
@@ -1685,7 +1685,7 @@ Rules: 2 sentences per paragraph maximum. Use ${first}'s name 2 times naturally.
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${getApiKey()}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2356,80 +2356,6 @@ async function downloadAllPDFs() {
 }
 
 
-</script>
-<!-- ══════════════════ ACCESS CODE MODAL ══════════════════ -->
-<div id="access-modal" style="
-  display:none; position:fixed; inset:0; z-index:9999;
-  background:rgba(10,25,45,0.92); backdrop-filter:blur(6px);
-  align-items:center; justify-content:center;">
-  <div style="
-    background:white; border-radius:20px; padding:44px 40px 36px;
-    width:420px; max-width:92vw; box-shadow:0 30px 80px rgba(0,0,0,0.4);
-    text-align:center;">
-    <div style="font-size:40px; margin-bottom:14px;">🔑</div>
-    <h2 style="font-family:'Outfit',sans-serif; font-size:22px; font-weight:800; color:#0b1f3a; margin-bottom:8px;">
-      Enter Access Code
-    </h2>
-    <p style="font-size:14px; color:#5a7290; margin-bottom:24px; line-height:1.5;">
-      This tool requires an access code to generate AI messages.<br>
-      Contact your administrator to get the code.
-    </p>
-    <input id="access-input" type="password"
-      placeholder="Paste access code here…"
-      style="width:100%; padding:13px 16px; border:2px solid #c8dff0; border-radius:10px;
-             font-family:'DM Sans',sans-serif; font-size:14px; outline:none; margin-bottom:8px;
-             transition:border-color .2s;"
-      onfocus="this.style.borderColor='#0096c7'"
-      onblur="this.style.borderColor='#c8dff0'"
-      onkeydown="if(event.key==='Enter') saveAccessCode()">
-    <div id="access-error" style="color:#e84d2a; font-size:13px; min-height:20px; margin-bottom:10px;"></div>
-    <button onclick="saveAccessCode()" style="
-      width:100%; padding:14px; background:linear-gradient(135deg,#0b1f3a,#0077aa);
-      color:white; border:none; border-radius:10px; font-family:'Outfit',sans-serif;
-      font-size:15px; font-weight:700; cursor:pointer;">
-      Unlock Tool →
-    </button>
-  </div>
-</div>
-
-<script>
-// ── Access code gate ──────────────────────────────────────
-function checkAccessCode() {
-  if (!localStorage.getItem('swim_report_gemini_key')) {
-    const modal = document.getElementById('access-modal');
-    modal.style.display = 'flex';
-    setTimeout(() => document.getElementById('access-input').focus(), 100);
-  }
-}
-
-async function saveAccessCode() {
-  const val = document.getElementById('access-input').value.trim();
-  const err = document.getElementById('access-error');
-  if (!val) { err.textContent = 'Please enter the access code.'; return; }
-
-  // Quick validation — try a minimal API call
-  err.textContent = 'Verifying…';
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${val}`,
-      { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ contents:[{parts:[{text:'Hi'}]}], generationConfig:{maxOutputTokens:5} }) }
-    );
-    const data = await res.json();
-    if (data.error) {
-      err.textContent = '❌ Invalid code: ' + data.error.message;
-      return;
-    }
-    localStorage.setItem('swim_report_gemini_key', val);
-    document.getElementById('access-modal').style.display = 'none';
-    err.textContent = '';
-  } catch(e) {
-    err.textContent = '❌ Could not verify. Check your connection.';
-  }
-}
-
-// Run check when page loads
-window.addEventListener('DOMContentLoaded', checkAccessCode);
 </script>
 </body>
 </html>
