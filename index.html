@@ -1068,7 +1068,12 @@ h1, h2, h3, h4, .heading { font-family: 'Outfit', sans-serif; }
     <div class="sidebar">
       <div class="sidebar-top">
         <div class="sidebar-label">Class Roster</div>
-        <button class="btn-add-swimmer" onclick="addSwimmer()">＋ Add Swimmer</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-add-swimmer" onclick="addSwimmer()">＋ Add Swimmer</button>
+          <span id="del-all-wrap">
+            <button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all swimmers">🗑</button>
+          </span>
+        </div>
       </div>
       <div class="swimmer-list" id="swimmer-list"></div>
     </div>
@@ -1300,6 +1305,63 @@ const S = {
 let _uid = 1;
 const uid = () => 'sw' + (_uid++);
 
+// ══════════════════════════════════════════════
+//  PERSISTENCE  (localStorage)
+// ══════════════════════════════════════════════
+const STORAGE_KEY = 'swim_roster_v1';
+
+function saveRoster() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      swimmers: S.swimmers.map(sw => ({ ...sw, loading: false })),
+      activeId: S.activeId,
+      openCats: S.openCats
+    }));
+  } catch(e) {}
+}
+
+function loadRoster() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (!d.swimmers || !d.swimmers.length) return;
+    S.swimmers = d.swimmers.map(sw => ({ ...sw, loading: false }));
+    S.activeId = d.activeId || S.swimmers[0]?.id || null;
+    S.openCats = d.openCats || {};
+    const maxN = S.swimmers.reduce((m, sw) => {
+      const n = parseInt((sw.id || '').replace('sw',''), 10);
+      return isNaN(n) ? m : Math.max(m, n);
+    }, 0);
+    if (maxN > 0) _uid = maxN + 1;
+  } catch(e) {}
+}
+
+function showDelConfirm() {
+  if (!S.swimmers.length) return;
+  const wrap = document.getElementById('del-all-wrap');
+  wrap.innerHTML = `
+    <span style="display:flex;align-items:center;gap:4px;">
+      <span style="font-size:11px;color:#e84d2a;white-space:nowrap;">Sure?</span>
+      <button onclick="confirmDelAll()" style="padding:2px 8px;font-size:11px;background:#e84d2a;color:#fff;border:none;border-radius:5px;cursor:pointer;">Yes</button>
+      <button onclick="cancelDelAll()" style="padding:2px 6px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:5px;cursor:pointer;color:#999;">No</button>
+    </span>`;
+}
+
+function confirmDelAll() {
+  S.swimmers = [];
+  S.activeId = null;
+  S.openCats = {};
+  saveRoster();
+  renderSidebar();
+  renderEditor();
+}
+
+function cancelDelAll() {
+  const wrap = document.getElementById('del-all-wrap');
+  wrap.innerHTML = `<button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all swimmers">🗑</button>`;
+}
+
 function mkSwimmer() {
   return {
     id: uid(), name: '', level: 1, nextLevel: 2,
@@ -1332,6 +1394,7 @@ function startApp() {
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'flex';
   document.getElementById('topbar-info').textContent = S.facility + ' · ' + S.instructor;
+  loadRoster();
   renderSidebar();
   renderEditor();
 }
@@ -1413,6 +1476,7 @@ function renderSidebar() {
       <button class="btn-del" onclick="delSwimmer('${sw.id}',event)" title="Remove">×</button>
     </div>`;
   }).join('');
+  saveRoster();
 }
 
 // ══════════════════════════════════════════════
@@ -1721,8 +1785,8 @@ function renderPrint() {
   el.innerHTML = S.swimmers.map(sw => {
     const lv = DB[sw.level];
     const total = allSkills(sw.level).length;
-    const nDate = S.classDate
-      ? new Date(S.classDate + 'T12:00:00').toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' })
+    const nDate = sw.nextDate
+      ? new Date(sw.nextDate + 'T12:00:00').toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' })
       : 'TBD';
     const nextLabel = sw.nextLevel === 7 ? 'Swimmer 7U' : `Swimmer ${sw.nextLevel}`;
 
@@ -2300,8 +2364,8 @@ async function downloadPDF(swId) {
 
   // 5. Date — left-aligned after label on the underline (y=43)
   let dateStr = '';
-  if (S.classDate) {
-    const d = new Date(S.classDate + 'T12:00:00');
+  if (sw.nextDate) {
+    const d = new Date(sw.nextDate + 'T12:00:00');
     dateStr = d.toLocaleDateString('en-CA', {year:'numeric',month:'long',day:'numeric'});
   } else {
     dateStr = new Date().toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'});
