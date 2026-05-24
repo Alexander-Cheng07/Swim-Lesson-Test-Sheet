@@ -1068,7 +1068,7 @@ h1, h2, h3, h4, .heading { font-family: 'Outfit', sans-serif; }
     <div class="sidebar">
       <div class="sidebar-top">
         <div class="sidebar-label">Class Roster</div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;align-items:center;">
           <button class="btn-add-swimmer" onclick="addSwimmer()">＋ Add Swimmer</button>
           <span id="del-all-wrap">
             <button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all swimmers">🗑</button>
@@ -1507,25 +1507,7 @@ function renderEditor() {
     ? [sw.level + 1, sw.level + 2, sw.level + 3].filter(n => n <= 6)
     : [];
 
-  // Tagged pills from skills
-  const allSk = allSkills(sw.level);
-  const strPills = sw.strengths.map(id => {
-    const sk = allSk.find(s => s.id === id);
-    return sk ? `<span class="tag-pill str">⭐ ${h(sk.t)}</span>` : '';
-  }).join('');
-  const stgPills = sw.struggles.map(id => {
-    const sk = allSk.find(s => s.id === id);
-    return sk ? `<span class="tag-pill stg">⚠️ ${h(sk.t)}</span>` : '';
-  }).join('');
-  const menGoodPills = Object.entries(sw.mentions).filter(([,v])=>v==='good').map(([id]) => {
-    const sk = allSk.find(s => s.id === id);
-    return sk ? `<span class="tag-pill men-good">👍 ${h(sk.t)}</span>` : '';
-  }).join('');
-  const menBadPills = Object.entries(sw.mentions).filter(([,v])=>v==='bad').map(([id]) => {
-    const sk = allSk.find(s => s.id === id);
-    return sk ? `<span class="tag-pill men-bad">👎 ${h(sk.t)}</span>` : '';
-  }).join('');
-  const hasPills = sw.strengths.length || sw.struggles.length || Object.keys(sw.mentions).length;
+  const hasPills = false;
 
   el.innerHTML = `
   <!-- ── Info ── -->
@@ -1568,7 +1550,7 @@ function renderEditor() {
   <!-- ── Skills ── -->
   <div class="card">
     <div class="card-heading">✅ Swimmer ${sw.level} Skills
-      <span class="hint">☑ = Passed &nbsp;⭐ = Strength &nbsp;⚠️ = Needs work &nbsp;◦ = Mention in paragraph (👍 good / 👎 concern)</span>
+      <span class="hint">☑ = Passed</span>
     </div>
     ${lv.cats.map(cat => {
       const key = sw.id + cat.name;
@@ -1583,21 +1565,10 @@ function renderEditor() {
         <div class="skill-rows">
           ${cat.skills.map(sk => {
             const isPassed   = sw.passed.includes(sk.id);
-            const isStr      = sw.strengths.includes(sk.id);
-            const isStg      = sw.struggles.includes(sk.id);
-            let cls = 'skill-row';
-            if (isStr)       cls += ' is-strength';
-            else if (isStg)  cls += ' is-struggle';
-            else if (isPassed) cls += ' is-passed';
-            const menState = sw.mentions[sk.id] || null; // null | 'good' | 'bad'
-            const menLabel = menState === 'good' ? '👍' : menState === 'bad' ? '👎' : '◦';
-            const menTitle = menState === 'good' ? 'Mentioned positively (click to set bad)' : menState === 'bad' ? 'Mentioned as concern (click to clear)' : 'Click to mention in paragraph';
+            const cls = 'skill-row' + (isPassed ? ' is-passed' : '');
             return `<div class="${cls}">
               <div class="skill-chk" onclick="togglePass('${sw.id}','${sk.id}')">${isPassed?'✓':''}</div>
               <span class="skill-label" onclick="togglePass('${sw.id}','${sk.id}')">${h(sk.t)}</span>
-              <button class="tag-btn str${isStr?' on':''}" onclick="toggleTag('${sw.id}','${sk.id}','str')" title="Tag as strength">⭐</button>
-              <button class="tag-btn stg${isStg?' on':''}" onclick="toggleTag('${sw.id}','${sk.id}','stg')" title="Tag as needs work">⚠️</button>
-              <button class="tag-btn men${menState?' '+menState:''}" onclick="cycleMention('${sw.id}','${sk.id}')" title="${menTitle}">${menLabel}</button>
             </div>`;
           }).join('')}
         </div>
@@ -1607,30 +1578,8 @@ function renderEditor() {
 
   <!-- ── Personal Message ── -->
   <div class="card">
-    <div class="card-heading">✨ Personal Message
-      <span class="hint">Driven by your ⭐ ⚠️ 👍 👎 tags above</span>
-    </div>
-    ${(() => {
-      const allSk = allSkills(sw.level);
-      const tagged = [
-        ...sw.strengths.map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean),
-        ...sw.struggles.map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean),
-        ...Object.keys(sw.mentions).map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean)
-      ];
-      if (!tagged.length) return `<p style="color:var(--gray-text);font-size:13px;font-style:italic">Tag at least one skill using ⭐ ⚠️ 👍 or 👎 to generate a message.</p>`;
-      return '';
-    })()}
-    <button class="btn-generate" onclick="generate('${sw.id}')" ${sw.loading?'disabled':''}>
-      ${sw.loading ? '<div class="spinner"></div> Writing message…' : '✨ Generate Personal Message'}
-    </button>
-    ${sw.loading ? `<div class="generating-banner">
-      <div class="spinner" style="border-top-color:var(--teal-hover);border-color:rgba(0,150,199,0.25);"></div>
-      Writing a warm, personal message based on your tags…
-    </div>` : ''}
-    ${!sw.loading && sw.feedback ? `
-      <div class="out-label">📝 Personal Message (editable)</div>
-      <textarea class="feedback-out" oninput="upd('${sw.id}','feedback',this.value)">${h(sw.feedback)}</textarea>
-    ` : ''}
+    <div class="card-heading">📝 Personal Message</div>
+    <textarea class="feedback-out" placeholder="Write your personal message here…" oninput="upd('${sw.id}','feedback',this.value)">${h(sw.feedback)}</textarea>
   </div>
 
   </div>`;
