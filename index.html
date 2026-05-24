@@ -290,6 +290,50 @@ h1, h2, h3, h4, .heading { font-family: 'Outfit', sans-serif; }
   color: white;
 }
 
+.group-block {
+  margin-bottom: 4px;
+}
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--panel-bg, #f0f4f8);
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  gap: 6px;
+}
+.group-active .group-header {
+  background: var(--teal, #0096c7);
+}
+.group-active .group-header .group-name-input {
+  color: #fff;
+}
+.group-name-input {
+  border: none;
+  background: transparent;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334e68;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.group-name-input:focus {
+  background: rgba(255,255,255,0.25);
+  border-radius: 4px;
+  cursor: text;
+  padding: 1px 4px;
+}
+.group-swimmers {
+  border: 1px solid #e2eaf2;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
 .swimmer-list {
   flex: 1;
   overflow-y: auto;
@@ -1067,11 +1111,11 @@ h1, h2, h3, h4, .heading { font-family: 'Outfit', sans-serif; }
   <div class="main-layout">
     <div class="sidebar">
       <div class="sidebar-top">
-        <div class="sidebar-label">Class Roster</div>
+        <div class="sidebar-label">Classes</div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn-add-swimmer" onclick="addSwimmer()">＋ Add Swimmer</button>
+          <button class="btn-add-swimmer" onclick="addGroup()">＋ Class</button>
           <span id="del-all-wrap">
-            <button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all swimmers">🗑</button>
+            <button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all">🗑</button>
           </span>
         </div>
       </div>
@@ -1299,14 +1343,15 @@ const DB = {
 // ══════════════════════════════════════════════
 const S = {
   apiKey: '', facility: '', instructor: '', classDate: '',
-  swimmers: [], activeId: null, openCats: {}
+  swimmers: [], activeId: null, openCats: {},
+  groups: [], activeGroup: null
 };
 
 let _uid = 1;
 const uid = () => 'sw' + (_uid++);
 
 // ══════════════════════════════════════════════
-//  PERSISTENCE  (localStorage)
+//  PERSISTENCE
 // ══════════════════════════════════════════════
 const STORAGE_KEY = 'swim_roster_v1';
 
@@ -1314,7 +1359,9 @@ function saveRoster() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       swimmers: S.swimmers.map(sw => ({ ...sw, loading: false })),
+      groups: S.groups,
       activeId: S.activeId,
+      activeGroup: S.activeGroup,
       openCats: S.openCats
     }));
   } catch(e) {}
@@ -1325,20 +1372,30 @@ function loadRoster() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const d = JSON.parse(raw);
-    if (!d.swimmers || !d.swimmers.length) return;
-    S.swimmers = d.swimmers.map(sw => ({ ...sw, loading: false }));
+    if (d.groups && d.groups.length) {
+      S.groups = d.groups;
+      const maxG = S.groups.reduce((m, g) => {
+        const n = parseInt((g.id || '').replace('g',''), 10);
+        return isNaN(n) ? m : Math.max(m, n);
+      }, 0);
+      if (maxG > 0) _gid = maxG + 1;
+    }
+    if (d.swimmers && d.swimmers.length) {
+      S.swimmers = d.swimmers.map(sw => ({ ...sw, loading: false }));
+      const maxN = S.swimmers.reduce((m, sw) => {
+        const n = parseInt((sw.id || '').replace('sw',''), 10);
+        return isNaN(n) ? m : Math.max(m, n);
+      }, 0);
+      if (maxN > 0) _uid = maxN + 1;
+    }
     S.activeId = d.activeId || S.swimmers[0]?.id || null;
+    S.activeGroup = d.activeGroup || S.groups[0]?.id || null;
     S.openCats = d.openCats || {};
-    const maxN = S.swimmers.reduce((m, sw) => {
-      const n = parseInt((sw.id || '').replace('sw',''), 10);
-      return isNaN(n) ? m : Math.max(m, n);
-    }, 0);
-    if (maxN > 0) _uid = maxN + 1;
   } catch(e) {}
 }
 
 function showDelConfirm() {
-  if (!S.swimmers.length) return;
+  if (!S.swimmers.length && !S.groups.length) return;
   const wrap = document.getElementById('del-all-wrap');
   wrap.innerHTML = `
     <span style="display:flex;align-items:center;gap:4px;">
@@ -1350,7 +1407,9 @@ function showDelConfirm() {
 
 function confirmDelAll() {
   S.swimmers = [];
+  S.groups = [];
   S.activeId = null;
+  S.activeGroup = null;
   S.openCats = {};
   saveRoster();
   renderSidebar();
@@ -1359,7 +1418,7 @@ function confirmDelAll() {
 
 function cancelDelAll() {
   const wrap = document.getElementById('del-all-wrap');
-  wrap.innerHTML = `<button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all swimmers">🗑</button>`;
+  wrap.innerHTML = `<button onclick="showDelConfirm()" style="padding:3px 8px;font-size:11px;background:transparent;border:1px solid #ccc;border-radius:6px;cursor:pointer;color:#999;" title="Delete all">🗑</button>`;
 }
 
 function mkSwimmer() {
@@ -1374,6 +1433,56 @@ function getSkill(swimmerId, skillId) {
   const sw = S.swimmers.find(s => s.id === swimmerId);
   if (!sw) return null;
   return DB[sw.level].cats.flatMap(c => c.skills).find(s => s.id === skillId) || null;
+}
+
+// ══════════════════════════════════════════════
+//  GROUP CRUD
+// ══════════════════════════════════════════════
+let _gid = 1;
+const gid = () => 'g' + (_gid++);
+
+function mkGroup(name) {
+  return { id: gid(), name: name || 'New Class' };
+}
+
+function addGroup() {
+  const g = mkGroup('New Class');
+  S.groups.push(g);
+  S.activeGroup = g.id;
+  renderSidebar();
+  // focus the group name input after render
+  setTimeout(() => {
+    const inp = document.getElementById('grp-name-' + g.id);
+    if (inp) { inp.select(); }
+  }, 50);
+}
+
+function delGroup(id, e) {
+  if (e) e.stopPropagation();
+  const swimmers = S.swimmers.filter(s => s.groupId === id);
+  if (swimmers.length && !confirm('Delete this class and all its swimmers?')) return;
+  S.swimmers = S.swimmers.filter(s => s.groupId !== id);
+  S.groups = S.groups.filter(g => g.id !== id);
+  if (S.activeGroup === id) S.activeGroup = S.groups[0]?.id || null;
+  if (S.activeId && !S.swimmers.find(s => s.id === S.activeId)) {
+    S.activeId = S.swimmers.find(s => s.groupId === S.activeGroup)?.id || null;
+  }
+  renderSidebar();
+  renderEditor();
+}
+
+function updGroupName(id, val) {
+  const g = S.groups.find(g => g.id === id);
+  if (g) g.name = val;
+  saveRoster();
+}
+
+function pickGroup(id) {
+  S.activeGroup = id;
+  const first = S.swimmers.find(s => s.groupId === id);
+  if (first) { S.activeId = first.id; }
+  renderSidebar();
+  renderEditor();
 }
 
 function allSkills(level) {
@@ -1424,7 +1533,15 @@ function goPrint() {
 //  SWIMMER CRUD
 // ══════════════════════════════════════════════
 function addSwimmer() {
+  // ensure at least one group exists
+  if (!S.groups.length) {
+    const g = mkGroup('Class 1');
+    S.groups.push(g);
+    S.activeGroup = g.id;
+  }
+  if (!S.activeGroup) S.activeGroup = S.groups[0].id;
   const sw = mkSwimmer();
+  sw.groupId = S.activeGroup;
   S.swimmers.push(sw);
   S.activeId = sw.id;
   openAllCats(sw.id, 1);
@@ -1436,7 +1553,10 @@ function delSwimmer(id, e) {
   if (e) e.stopPropagation();
   if (!confirm('Remove this swimmer?')) return;
   S.swimmers = S.swimmers.filter(s => s.id !== id);
-  if (S.activeId === id) S.activeId = S.swimmers[0]?.id || null;
+  if (S.activeId === id) {
+    const remaining = S.swimmers.filter(s => s.groupId === S.activeGroup);
+    S.activeId = remaining[0]?.id || S.swimmers[0]?.id || null;
+  }
   renderSidebar();
   renderEditor();
 }
@@ -1462,20 +1582,46 @@ function openAllCats(swId, level) {
 function renderSidebar() {
   const el = document.getElementById('swimmer-list');
   if (!el) return;
-  el.innerHTML = S.swimmers.map(sw => {
-    const init = sw.name
-      ? sw.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0,2)
-      : '?';
-    return `<div class="swimmer-item${sw.id === S.activeId ? ' active' : ''}" onclick="pickSwimmer('${sw.id}')">
-      <div class="swimmer-avatar">${h(init)}</div>
-      <div class="swimmer-info">
-        <div class="swimmer-name">${h(sw.name || 'Unnamed Swimmer')}</div>
-        <div class="swimmer-level-tag">Swimmer ${sw.level}</div>
+
+  if (!S.groups.length) {
+    el.innerHTML = '<p style="padding:16px;color:#999;font-size:13px;text-align:center;">Add a class to get started.</p>';
+    saveRoster();
+    return;
+  }
+
+  el.innerHTML = S.groups.map(g => {
+    const members = S.swimmers.filter(s => s.groupId === g.id);
+    const isActive = g.id === S.activeGroup;
+    const rows = members.map(sw => {
+      const init = sw.name
+        ? sw.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0,2)
+        : '?';
+      return `<div class="swimmer-item${sw.id === S.activeId ? ' active' : ''}" onclick="pickSwimmer('${sw.id}')">
+        <div class="swimmer-avatar">${h(init)}</div>
+        <div class="swimmer-info">
+          <div class="swimmer-name">${h(sw.name || 'Unnamed Swimmer')}</div>
+          <div class="swimmer-level-tag">Swimmer ${sw.level}</div>
+        </div>
+        ${sw.feedback ? '<div class="done-dot" title="Message ready"></div>' : ''}
+        <button class="btn-del" onclick="delSwimmer('${sw.id}',event)" title="Remove">×</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="group-block${isActive ? ' group-active' : ''}">
+      <div class="group-header" onclick="pickGroup('${g.id}')">
+        <input id="grp-name-${g.id}" class="group-name-input" value="${h(g.name)}"
+          onclick="event.stopPropagation()"
+          onchange="updGroupName('${g.id}',this.value)"
+          oninput="updGroupName('${g.id}',this.value)" />
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button class="btn-add-swimmer" style="padding:2px 8px;font-size:11px;" onclick="event.stopPropagation();S.activeGroup='${g.id}';addSwimmer()">＋</button>
+          <button class="btn-del" onclick="delGroup('${g.id}',event)" title="Delete class">×</button>
+        </div>
       </div>
-      ${sw.feedback ? '<div class="done-dot" title="Message ready"></div>' : ''}
-      <button class="btn-del" onclick="delSwimmer('${sw.id}',event)" title="Remove">×</button>
+      <div class="group-swimmers">${rows || '<p style="padding:8px 12px;color:#aaa;font-size:12px;">No swimmers yet</p>'}</div>
     </div>`;
   }).join('');
+
   saveRoster();
 }
 
@@ -1507,7 +1653,25 @@ function renderEditor() {
     ? [sw.level + 1, sw.level + 2, sw.level + 3].filter(n => n <= 6)
     : [];
 
-  const hasPills = false;
+  // Tagged pills from skills
+  const allSk = allSkills(sw.level);
+  const strPills = sw.strengths.map(id => {
+    const sk = allSk.find(s => s.id === id);
+    return sk ? `<span class="tag-pill str">⭐ ${h(sk.t)}</span>` : '';
+  }).join('');
+  const stgPills = sw.struggles.map(id => {
+    const sk = allSk.find(s => s.id === id);
+    return sk ? `<span class="tag-pill stg">⚠️ ${h(sk.t)}</span>` : '';
+  }).join('');
+  const menGoodPills = Object.entries(sw.mentions).filter(([,v])=>v==='good').map(([id]) => {
+    const sk = allSk.find(s => s.id === id);
+    return sk ? `<span class="tag-pill men-good">👍 ${h(sk.t)}</span>` : '';
+  }).join('');
+  const menBadPills = Object.entries(sw.mentions).filter(([,v])=>v==='bad').map(([id]) => {
+    const sk = allSk.find(s => s.id === id);
+    return sk ? `<span class="tag-pill men-bad">👎 ${h(sk.t)}</span>` : '';
+  }).join('');
+  const hasPills = sw.strengths.length || sw.struggles.length || Object.keys(sw.mentions).length;
 
   el.innerHTML = `
   <!-- ── Info ── -->
@@ -1550,7 +1714,7 @@ function renderEditor() {
   <!-- ── Skills ── -->
   <div class="card">
     <div class="card-heading">✅ Swimmer ${sw.level} Skills
-      <span class="hint">☑ = Passed</span>
+      <span class="hint">☑ = Passed &nbsp;⭐ = Strength &nbsp;⚠️ = Needs work &nbsp;◦ = Mention in paragraph (👍 good / 👎 concern)</span>
     </div>
     ${lv.cats.map(cat => {
       const key = sw.id + cat.name;
@@ -1565,10 +1729,21 @@ function renderEditor() {
         <div class="skill-rows">
           ${cat.skills.map(sk => {
             const isPassed   = sw.passed.includes(sk.id);
-            const cls = 'skill-row' + (isPassed ? ' is-passed' : '');
+            const isStr      = sw.strengths.includes(sk.id);
+            const isStg      = sw.struggles.includes(sk.id);
+            let cls = 'skill-row';
+            if (isStr)       cls += ' is-strength';
+            else if (isStg)  cls += ' is-struggle';
+            else if (isPassed) cls += ' is-passed';
+            const menState = sw.mentions[sk.id] || null; // null | 'good' | 'bad'
+            const menLabel = menState === 'good' ? '👍' : menState === 'bad' ? '👎' : '◦';
+            const menTitle = menState === 'good' ? 'Mentioned positively (click to set bad)' : menState === 'bad' ? 'Mentioned as concern (click to clear)' : 'Click to mention in paragraph';
             return `<div class="${cls}">
               <div class="skill-chk" onclick="togglePass('${sw.id}','${sk.id}')">${isPassed?'✓':''}</div>
               <span class="skill-label" onclick="togglePass('${sw.id}','${sk.id}')">${h(sk.t)}</span>
+              <button class="tag-btn str${isStr?' on':''}" onclick="toggleTag('${sw.id}','${sk.id}','str')" title="Tag as strength">⭐</button>
+              <button class="tag-btn stg${isStg?' on':''}" onclick="toggleTag('${sw.id}','${sk.id}','stg')" title="Tag as needs work">⚠️</button>
+              <button class="tag-btn men${menState?' '+menState:''}" onclick="cycleMention('${sw.id}','${sk.id}')" title="${menTitle}">${menLabel}</button>
             </div>`;
           }).join('')}
         </div>
@@ -1578,8 +1753,30 @@ function renderEditor() {
 
   <!-- ── Personal Message ── -->
   <div class="card">
-    <div class="card-heading">📝 Personal Message</div>
-    <textarea class="feedback-out" placeholder="Write your personal message here…" oninput="upd('${sw.id}','feedback',this.value)">${h(sw.feedback)}</textarea>
+    <div class="card-heading">✨ Personal Message
+      <span class="hint">Driven by your ⭐ ⚠️ 👍 👎 tags above</span>
+    </div>
+    ${(() => {
+      const allSk = allSkills(sw.level);
+      const tagged = [
+        ...sw.strengths.map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean),
+        ...sw.struggles.map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean),
+        ...Object.keys(sw.mentions).map(id => allSk.find(s=>s.id===id)?.t).filter(Boolean)
+      ];
+      if (!tagged.length) return `<p style="color:var(--gray-text);font-size:13px;font-style:italic">Tag at least one skill using ⭐ ⚠️ 👍 or 👎 to generate a message.</p>`;
+      return '';
+    })()}
+    <button class="btn-generate" onclick="generate('${sw.id}')" ${sw.loading?'disabled':''}>
+      ${sw.loading ? '<div class="spinner"></div> Writing message…' : '✨ Generate Personal Message'}
+    </button>
+    ${sw.loading ? `<div class="generating-banner">
+      <div class="spinner" style="border-top-color:var(--teal-hover);border-color:rgba(0,150,199,0.25);"></div>
+      Writing a warm, personal message based on your tags…
+    </div>` : ''}
+    ${!sw.loading && sw.feedback ? `
+      <div class="out-label">📝 Personal Message (editable)</div>
+      <textarea class="feedback-out" oninput="upd('${sw.id}','feedback',this.value)">${h(sw.feedback)}</textarea>
+    ` : ''}
   </div>
 
   </div>`;
