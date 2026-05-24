@@ -1695,7 +1695,7 @@ function renderEditor() {
   <!-- ── Skills ── -->
   <div class="card">
     <div class="card-heading">✅ Swimmer ${sw.level} Skills
-      <span class="hint">☑ = Passed</span>
+      <span class="hint">☑ = Passed &nbsp;⭐ = Strength &nbsp;⚠️ = Needs work &nbsp;◦ = Mention in paragraph (👍 good / 👎 concern)</span>
     </div>
     ${lv.cats.map(cat => {
       const key = sw.id + cat.name;
@@ -1879,8 +1879,8 @@ function renderPrint() {
   el.innerHTML = S.swimmers.map(sw => {
     const lv = DB[sw.level];
     const total = allSkills(sw.level).length;
-    const nDate = sw.nextDate
-      ? new Date(sw.nextDate + 'T12:00:00').toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' })
+    const nDate = S.classDate
+      ? new Date(S.classDate + 'T12:00:00').toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' })
       : 'TBD';
     const nextLabel = sw.nextLevel === 7 ? 'Swimmer 7U' : `Swimmer ${sw.nextLevel}`;
 
@@ -2458,8 +2458,8 @@ async function downloadPDF(swId) {
 
   // 5. Date — left-aligned after label on the underline (y=43)
   let dateStr = '';
-  if (sw.nextDate) {
-    const d = new Date(sw.nextDate + 'T12:00:00');
+  if (S.classDate) {
+    const d = new Date(S.classDate + 'T12:00:00');
     dateStr = d.toLocaleDateString('en-CA', {year:'numeric',month:'long',day:'numeric'});
   } else {
     dateStr = new Date().toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'});
